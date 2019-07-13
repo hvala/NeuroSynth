@@ -9,17 +9,77 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import gamma
 
+
+# calculate the number of samples
+def nsamples(sec):
+    return(int(round(sec * 44100,0)))
+
 # make function that computes a sine wave
 def sine_wave (amp,funf,phase,length,rate):
     """ Generate a list containing data for a sinewave
         a = amplitude, f = frequency in Hz, p = phase of sine function,
         l = number of samples, r = sampling rate (samples/sec)
     """
-    wave_data = np.zeros(length, dtype=int)
-    for i in range(0,length,1):
-        y = amp * math.sin(2 * math.pi * funf * i/rate + phase)
-        wave_data[i]= int(y)
-    return wave_data
+    n_samples = length * rate
+    time = np.linspace(0,n_samples,n_samples)
+    wave_data = amp * np.sin(2 * math.pi * funf * time / rate + phase)
+    return(wave_data)
+
+
+# a function
+# make function that computes a sine wave
+def harmonic_wave (amp,funf,n,phase,length,rate):
+    """ Generate a list containing data for a sinewave
+        a = amplitude, f = frequency in Hz, p = phase of sine function,
+        l = number of samples, r = sampling rate (samples/sec)
+    """
+    n_samples = length * rate
+    freqs = harmonic_series(funf,n)
+
+    time = np.linspace(0,n_samples,n_samples)
+
+    wave_data = np.zeros(n_samples)
+    for i in range(0,len(freqs),1):
+        wave_data += amp[i] * np.sin(2 * math.pi * freqs[i]* time / rate + phase[i])
+
+    return(wave_data)
+
+# a function
+# make function that computes a sine wave
+def harmonic_adsr_wave (amp,funf,n,phase,length,rate):
+    """ Generate a list containing data for a sinewave
+        a = amplitude, f = frequency in Hz, p = phase of sine function,
+        l = number of samples, r = sampling rate (samples/sec)
+    """
+    n_samples = nsamples(length)
+    freqs = harmonic_series(funf,n)
+
+    time = np.linspace(0,n_samples-1,n_samples)
+
+    wave_data = np.zeros(n_samples)
+    for i in range(0,len(freqs),1):
+        wave_data += envelope_adsr(time, amp[i]) * ( np.sin(2 * math.pi * freqs[i]* time / rate + phase[i]) )
+
+    return(wave_data)
+
+# a function
+# make function that computes a sine wave
+def harmonic_linenv_wave (amp,funf,n,phase,length,rate):
+    """ Generate a list containing data for a sinewave
+        a = amplitude, f = frequency in Hz, p = phase of sine function,
+        l = number of samples, r = sampling rate (samples/sec)
+    """
+    n_samples = nsamples(length)
+    freqs = harmonic_series(funf,n)
+
+    time = np.linspace(0,n_samples-1,n_samples)
+
+    wave_data = np.zeros(n_samples)
+    for i in range(0,len(freqs),1):
+        wave_data += envelope_linear(time, amp[i]) * ( np.sin(2 * math.pi * freqs[i]* time / rate + phase[i]) )
+
+    return(wave_data)
+
 
 note_bank = {
 """ Note bank is a dictionary storing the fundamental frequencies
@@ -142,7 +202,7 @@ def find_freq(note):
     """ takes a string name for the note, e.g. 'C4'
     and returns the frequency """
     frequency = note_bank[note]
-    return frequency
+    return(frequency)
 
 def harmonic_series(f,n):
     """ compute the first n frequencies in a harmonic series
@@ -162,118 +222,76 @@ def inv_harmonic_series(f,n):
         series.append(f / (i + 1))
     return(series)
 
-def harmonic_base(funf, nharm, frate, dur, phase ):
-    """ make a synth note
-        create a numpy 2D array storing nharm sinewaves for a given
-        harmonic series based on a:
-        fundamental frequency f
-        frate = frame rate (smaples per second)
-        dur = duration in seconds
-        phase = a list of phase shift valuse, length must be 1 or
-        equal to nharm
-    """
-    # check the phase list for =nharm or 1, return if neither
-    phase = [phase]
-    if len(phase) == 1:
-        phase = [phase[0] for i in range(0,nharm,1)]
-    elif len(phase) != nharm:
-        print("Cannot synthesize base! Length of phase list must equal the number of harmonics or equal 1.")
-        return
-    else:
-        pass
-
-    # set the base amplitude and calculate the number of samples needed (length)
-    amp = 128
-    length = frate * dur
-    # initialize a base 2D array
-    base = np.zeros((nharm, length), dtype=int)
-
-    for i in range(0,nharm,1):
-        wave = sine_wave(amp,funf,phase[i],length,frate)
-        for j in range(0,length,1):
-            base[i,j] = wave[j]
-
-    return(base)
-
-def linear_attack(ai,at,t):
-    """ returns the value for t of a linear attack model
-    """
-    return( ai + ( 1 - ai ) / at * t )
-
-def linear_decay(ba, bt, at, t ):
-    """ returns the value for t of a linear decay model
-    """
-    return( ba + ( ba - 1 ) / ( bt - at ) * ( t - bt ) )
-
-def linear_release(ba, ct, dt, t):
-    """ returns the value for t of a linear release model
-    """
-    #( t + 1 ) * ( (-ba) / ( dt - ct ) )
-    return( ba * ( (ct - t) / (dt - ct) + 1 ) )
-
-def geometric_overtones(base, a, r):
-    """ Use a geometric series to reduce harmonic overtones
+def add_gaussian_noise(x, noise=1.0):
+    """ add noise to a wave using random draws from a normal/gaussian distribution
     """
 
-    # calculate integers to address where phases of the model switch
-    time = range(0,base.shape[1],1)
-    harm = range(0,base.shape[0],1)
+    for i in range(0,len(x),1):
+        x[i] = int(np.random.normal(loc=x[i], scale=noise, size=1))
 
-    for i in time:
-        for j in harm:
-            base[j,i] = base[j,i] * a*(r**(j+1))
-            #print(a*(r**(j+1)))
+    return(x)
 
-    return(base)
+def add_wsample_noise(x, noise=1.0, g=0.01):
+    """ add noise to a wave using random draws from a normal/gaussian distribution
+    """
 
-def make_wave_positive(base):
+    for i in range(0,len(x),1):
+        r = np.random.random(1)
+        w = x[0]
+        gap = 1.0 - g
+        if r <= gap:
+            pass
+            #x[i] = int(np.random.normal(loc=x[i], scale=noise, size=1))
+        elif r > gap and r <= gap + 0.5 * g :
+            x[i] = w
+        else:
+            w = x[i]
+            #x[i] = int(np.random.normal(loc=x[i], scale=noise, size=1))
+
+    return(x)
+
+def add_choice_noise(x, g=0.01):
+    """ add noise to a wave using random draws from a normal/gaussian distribution
+    """
+    gap = 1.0 - g
+    for i in range(0,len(x),1):
+        r = np.random.random(1)
+        if r <= gap:
+            pass
+            #x[i] = int(np.random.normal(loc=x[i], scale=noise, size=1))
+        else:
+            x[i] = np.random.choice(x,1)
+
+    return(x)
+
+def add_zero_noise(x, g=0.01):
+    """ add noise to a wave using random draws from a normal/gaussian distribution
+    """
+    gap = 1.0 - g
+    for i in range(0,len(x),1):
+        r = np.random.random(1)
+        if r <= gap:
+            pass
+            #x[i] = int(np.random.normal(loc=x[i], scale=noise, size=1))
+        else:
+            x[i] = 0
+
+    return(x)
+
+
+def make_wave_positive(wave):
     """ make all harmonic overtones equal
     """
 
     # calculate integers to address where phases of the model switch
-    time = range(0,len(base),1)
-    a = min(base)
+    a = min(wave)
     if a < 0:
         a = -a
     else:
         print("Wave is already positive.")
         return
 
-    for i in time:
-        base[i] = base[i] + a
-
-    return(base)
-
-def equal_overtones(base):
-    """ make all harmonic overtones equal
-    """
-
-    # calculate integers to address where phases of the model switch
-    time = range(0,base.shape[1],1)
-    harm = range(0,base.shape[0],1)
-
-    for i in time:
-        for j in harm:
-            base[j,i] = base[j,i] / len(harm)
-            #print(a*(r**(j+1)))
-
-    return(base)
-
-def compile_overtones(base):
-    """ sum over overtones to create a single wave form
-    """
-    # calculate integers to address where phases of the model switch
-    time = range(0,base.shape[1],1)
-    harm = range(0,base.shape[0],1)
-
-    wave = np.zeros(base.shape[1], dtype=int)
-
-    for i in time:
-        sample = 0
-        for j in harm:
-            sample += base[j,i]
-
-        wave[i] = int(sample)
+    wave = wave + a
 
     return(wave)
 
@@ -292,92 +310,49 @@ def merge_stereo_chunk(left_wave, right_wave):
         chunk.append(left_wave[i])
         chunk.append(right_wave[i])
 
+    chunk = np.array(chunk, dtype = int)
+
     return(chunk)
 
-def linear_adsr(base, ai, at, bt, ba, ct):
-    """ Apply an ADSR (attack, decay, sustain, release) model
-        to a harmonic base to mold the general shape of a sound
-        parameters are given as propotions of the domain they affect,
-        either amplitude or time
+def envelope_adsr(time, x):
+    """ Calclate an ADSR (attack, decay, sustain, release) envelope
+        to based on t to mold the general shape of a sound
+        t is a numpy array, the envelope function will return an
+        int for the amplitude at t based on the model
+        times are specified as sample quantitites
         at = attack time, aa = attack amplitude, ai = amplitude intercept
-        bt = decay time, ba = decay amplitude, ct = sustain time
+        bt = decay time, ba = decay amplitude, ct = sustain time, dt = decay time
     """
+    ai, at, aa, bt, ba, ct, dt = x[0:7]
 
-    # calculate integers to address where phases of the model switch
-    time = range(0,base.shape[1],1)
-    harm = range(0,base.shape[0],1)
-    at = int(round( len(time) * at, 0 ))
-    bt = int(round( len(time) * bt, 0 ))
-    ct = int(round( len(time) * ct, 0 ))
-    dt = len(time)
+    amp = np.zeros(len(time))
 
-    # do the same with the amplitude parameters
-    max_amp = np.max(base)
-    aa = 1.0
-    da = 0
-
-    # establish ranges for the modes
-    attack_range = range(0,at,1)
-    decay_range = range(at,bt,1)
-    sustain_range = range(bt,ct,1)
-    release_range = range(ct,dt+1,1)
-    #print("{} {} | {} {} | {} {} | {} {}".format(min(attack_range),max(attack_range),min(decay_range),max(decay_range),min(sustain_range),max(sustain_range),min(release_range),max(release_range)))
-
-    for i in harm:
-        for j in time:
-            if j in attack_range:
-                base[i,j] = base[i,j] * linear_attack(ai,at,j)
-            elif j in decay_range:
-                base[i,j] = base[i,j] * linear_decay(ba, bt, at, j)
-            elif j in sustain_range:
-                base[i,j] = base[i,j] * ba
-            elif j in release_range:
-                base[i,j] = base[i,j] * linear_release(ba, ct, dt, j)
-            else:
-                print("Problem calculating asdr. Index {} not in base range.".format(j))
-                return
-
-    return(base)
-
-def model_adsr(ai, at, bt, ba, ct):
-    """ Model an ADSR (attack, decay, sustain, release) model
-        to a harmonic base to mold the general shape of a sound
-        parameters are given as propotions of the domain they affect,
-        either amplitude or time
-        at = attack time, aa = attack amplitude, ai = amplitude intercept
-        bt = decay time, ba = decay amplitude, ct = sustain time
-    """
-
-    # calculate integers to address where phases of the model switch
-    time = np.array(range(0,1000,1))
-    amplitude = np.zeros(1000)
-
-    at = int(round( len(time) * at, 0 ))
-    bt = int(round( len(time) * bt, 0 ))
-    ct = int(round( len(time) * ct, 0 ))
-    dt = len(time)
-
-    # do the same with the amplitude parameters
-    aa = 1.0
-    da = 0
-
-    # establish ranges for the modes
-    attack_range = range(0,at,1)
-    decay_range = range(at,bt,1)
-    sustain_range = range(bt,ct,1)
-    release_range = range(ct,dt+1,1)
-
-    for j in time:
-        if j in attack_range:
-            amplitude[j] = linear_attack(ai,at,j)
-        elif j in decay_range:
-            amplitude[j] = linear_decay(ba, bt, at, j)
-        elif j in sustain_range:
-            amplitude[j] = ba
-        elif j in release_range:
-            amplitude[j] = linear_release(ba, ct, dt, j)
+    for t in time:
+        if t < 0 :
+            amp[int(t)] = 0
+        elif t >= 0 and t <= at :
+            amp[int(t)] = ai + (aa - ai) / at * t
+        elif t > at and t <= bt :
+            amp[int(t)] = aa + ( ba - aa ) / ( bt - at ) * ( t - at )
+        elif t > bt and t <= ct :
+            amp[int(t)] = ba
+        elif t > ct and t <= dt :
+            amp[int(t)] = ba * ( (ct - t) / (dt - ct) + 1 )
+        elif t > dt :
+            amp[int(t)] = 0
         else:
-            print("Problem calculating asdr. Index {} not in base range.".format(j))
+            print("Problem calculating asdr. Index {} not in adsr's domain.".format(x))
             return
 
-    return([time, amplitude])
+    return(amp)
+
+def envelope_linear(time,c):
+    """ Calcuate amplitude for simple linear envelope model
+    """
+    amp = np.zeros(len(time))
+    a, b = c[0:2]
+    for t in time:
+
+        amp[int(t)] = int( a + (b - a) / len(time) * t )
+
+    return(amp)
