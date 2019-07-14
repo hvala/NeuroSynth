@@ -1,94 +1,157 @@
 
+# NeuroWave is a library for NeuroSynth
+# This module contains functions and classes used in the
+# creation of wave forms
+
+import math
 import wave #reading and writing .wav files
 import numpy as np
-import math
 import matplotlib.pyplot as plt
 from scipy.stats import gamma
-import scipy.io.wavfile as spw
 import NeuroLib as NL
-
-# Define parameters for the .wav file format
-# Define parameters for the .wav file format
-n_channels = 2
-sample_width = 2
-frame_rate = 44100
-time_in_sec = 5
-n_frames = frame_rate * time_in_sec
-compression = 'NONE'
-comp_name = 'none'
-parameters = (n_channels, sample_width, frame_rate, n_frames, compression, comp_name)
-
-first_note = 'C4'
-first_freq = NL.find_freq(first_note)
-print("The first note is {}. It\'s frequency is {}.".format(first_note, first_freq))
-
-first_series = NL.harmonic_series(first_freq, 6)
-first_inv_series = NL.inv_harmonic_series(first_freq, 6)
-
-print(first_series)
-print(first_inv_series)
-
-#def envelope_adsr(t, ai, at, aa, bt, ba, ct, dt):
-envelopes = np.array([
-    [0, NL.nsamples(0.001), 12, NL.nsamples(4.0), 5, NL.nsamples(4.01), NL.nsamples(5.0)],
-    [0, NL.nsamples(0.001), 10, NL.nsamples(4.0), 5, NL.nsamples(4.01), NL.nsamples(5.0)],
-    [0, NL.nsamples(0.001), 8,  NL.nsamples(4.0), 4, NL.nsamples(4.01), NL.nsamples(5.0)],
-    [0, NL.nsamples(0.001), 7,  NL.nsamples(4.0), 3, NL.nsamples(4.01), NL.nsamples(5.0)],
-    [0, NL.nsamples(0.001), 6,  NL.nsamples(4.0), 2, NL.nsamples(4.01), NL.nsamples(5.0)],
-    [0, NL.nsamples(0.001), 5,  NL.nsamples(4.0), 1, NL.nsamples(4.01), NL.nsamples(5.0)],
-    [0, NL.nsamples(0.001), 2,  NL.nsamples(4.0), 1, NL.nsamples(4.01), NL.nsamples(5.0)],
-    [0, NL.nsamples(0.001), 2,  NL.nsamples(4.0), 1, NL.nsamples(4.01), NL.nsamples(5.0)],
-    [0, NL.nsamples(0.001), 2,  NL.nsamples(4.0), 1, NL.nsamples(4.01), NL.nsamples(5.0)],
-    [0, NL.nsamples(0.001), 2,  NL.nsamples(4.0), 1, NL.nsamples(4.01), NL.nsamples(5.0)],
-    [0, NL.nsamples(0.001), 2,  NL.nsamples(4.0), 1, NL.nsamples(4.01), NL.nsamples(5.0)],
-    [0, NL.nsamples(0.001), 2,  NL.nsamples(4.0), 1, NL.nsamples(4.01), NL.nsamples(5.0)]
-    ])
-
-lenvelopes = np.array([
-    [20,5],[10,1],[17,5],[7,1],
-    [13,5],[5,1],[10,5],[2,1],
-    [5,5],[2,1],[5,5],[2,1],
-    [3,1],[2,1],[3,0.9],[2,0.8],
-    [3,0.7],[2,0.6],[3,0.5],[3,0.4],
-    [3,0.3],[2,0.2],[3,0.1],[2,0],
-])
-
-modX = np.linspace(0,NL.nsamples(5.0),NL.nsamples(5.0)+1)
-modY = NL.envelope_adsr( modX, envelopes[11])
-adsr_fig = plt.figure()
-plt.plot(modX,modY)
-adsr_fig.savefig('adsr_mod.png')
+import NeuroConstruct as NC
+import NeuroNoise as NZ
+import NeuroNote as NN
+import NeuroDyne as ND
 
 
-amps = (10, 12, 8, 7, 6, 5, 1, 1, 1, 1, 1, 1)
-phis = (0, 0.1, 0, 0.2, 0, 0.3, 0, 0.4, 0, 0.5, 0, 0.5, 0, 0.7, 0, 0.8, 0, 0.9, 0, 1.0, 0, 1.1, 0, 1.2)
-# create a sinewave
-#  def sine_wave (amp,funf,phase,length,rate):
-first_funfreq = NL.harmonic_linenv_wave(lenvelopes,first_freq,24,phis,time_in_sec,frame_rate)
+
+class Base:
+
+    def __init__(self, fundf, nharm, harm, phase, addfreqs=None ):
+        self.fundfreq = fundf
+        self.nharmonics = nharm
+        harm = '_' + harm
+        if harm in series_lib.keys():
+            self.harm_model = series_lib[harm]
+        else:
+            self.harm_series = series_lib['_harm']
+            print("Harmonic series {} not found. Using default harmonic series.".format(harm))
+        phase = "_" + phase
+        if phase in phase_lib.keys():
+            self.phase_model = phase_lib[phase]
+        else:
+            self.phase = phase_lib['_zero']
+            print("Phase set {} not found. Using default phase set: _zero.".format(phase))
+        self.phase_set = self.build_phase_set()
+        self.harm_series = self.build_harm_set()
+
+        if addfreqs != None:
+            self.harm_series = self.harm_series + np.array(addfreqs)
+            self.nharmonics += len(addfreqs)
+
+    def build_phase_set(self):
+        phase_set = self.phase_model(self.nharmonics)
+        return(phase_set)
+
+    def build_harm_set(self):
+        harm_model = self.harm_model(self.fundfreq,self.nharmonics)
+        return(harm_model)
+
+    def print_phase_set(self):
+        print(self.phase_set)
+        return
+
+    def print_harm_set(self):
+        print(self.harm_series)
+        return
+
+# make function that computes a sine wave
+def sine_wave (amp,funf,phase,length,rate):
+    """ Generate a list containing data for a sinewave
+        a = amplitude, f = frequency in Hz, p = phase of sine function,
+        l = number of samples, r = sampling rate (samples/sec)
+    """
+    n_samples = length * rate
+    time = np.linspace(0,n_samples,n_samples)
+    wave_data = amp * np.sin(2 * math.pi * funf * time / rate + phase)
+    return(wave_data)
 
 
-#add some noise
-#first_funfreq = NL.add_zero_noise(first_funfreq,g=0.05)
+# a function
+# make function that computes a sine wave
+def harmonic_wave (funf,n,phase,length,rate,envtype,envparams):
+    """ Generate a list containing data for a sinewave
+        a = amplitude, f = frequency in Hz, p = phase of sine function,
+        l = number of samples, r = sampling rate (samples/sec)
+    """
+    n_samples = length * rate
+    freqs = harmonic_series(funf,n)
+    env = ND.Envelope(envtype)
 
-#print(first_funfreq[0:1000])
-first_funfreq = NL.make_wave_positive(first_funfreq)
+    time = np.linspace(0,n_samples-1,n_samples)
+
+    wave_data = np.zeros(n_samples)
+    for i in range(0,len(freqs),1):
+        wave_data += env.calc_envelope(time, envparams[i]) * np.sin(2 * math.pi * freqs[i]* time / rate + phase[i])
+
+    return(wave_data)
+
+# a function
+# make function that computes a sine wave
+def harmonic_adsr_wave (amp,funf,n,phase,length,rate):
+    """ Generate a list containing data for a sinewave
+        a = amplitude, f = frequency in Hz, p = phase of sine function,
+        l = number of samples, r = sampling rate (samples/sec)
+    """
+    n_samples = NC.nsamples(length)
+    freqs = harmonic_series(funf,n)
+
+    time = np.linspace(0,n_samples-1,n_samples)
+
+    wave_data = np.zeros(n_samples)
+    for i in range(0,len(freqs),1):
+        wave_data += ND.envelope_adsr(time, amp[i]) * ( np.sin(2 * math.pi * freqs[i]* time / rate + phase[i]) )
+
+    return(wave_data)
+
+# a function
+# make function that computes a sine wave
+def harmonic_linenv_wave (amp,funf,n,phase,length,rate):
+    """ Generate a list containing data for a sinewave
+        a = amplitude, f = frequency in Hz, p = phase of sine function,
+        l = number of samples, r = sampling rate (samples/sec)
+    """
+    n_samples = NC.nsamples(length)
+    freqs = harmonic_series(funf,n)
+
+    time = np.linspace(0,n_samples-1,n_samples)
+
+    wave_data = np.zeros(n_samples)
+    for i in range(0,len(freqs),1):
+        wave_data += ND.envelope_linear(time, amp[i]) * ( np.sin(2 * math.pi * freqs[i]* time / rate + phase[i]) )
+
+    return(wave_data)
 
 
-first_funfreq = NL.merge_stereo_chunk(first_funfreq, first_funfreq)
+def harmonic_series(f,n):
+    """ compute the first n frequencies in a harmonic series
+        from a given frequency f
+    """
+    series = np.zeros(n)
+    series[0] = f
+    for i in range(1,n,1):
+        series[i] = (f * (i + 1))
+    return(series)
 
-print(type(first_funfreq))
+def inv_harmonic_series(f,n):
+    """ compute the first n frequencies in an inverted harmonic
+        series from a given frequency f
+    """
+    series = np.zeros(n)
+    series[0] = f
+    for i in range(1,n,1):
+        series[i] = (f * (i + 1))
+    return(series)
 
-sample = list()
-for i in range(0,len(first_funfreq),1):
-    sample.append(int(round(first_funfreq[i],0)))
+def phase_zero(n):
+    return(np.zeros(int(n)))
 
+series_lib = {
+    '_harm' : harmonic_series,
+    '_invh' : inv_harmonic_series
+}
 
-samp = wave.open('Neuro_wave1.wav','wb')
-samp.setparams(parameters)
-samp.writeframes(bytearray(sample))
-samp.close()
-
-#sample = wave.open('Neuro_wave1.wav','wb')
-#sample.setparams(parameters)
-#sample.writeframes(bytearray(score))
-#sample.close()
+phase_lib = {
+    '_zero' : phase_zero
+}
