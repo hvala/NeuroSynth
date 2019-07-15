@@ -120,15 +120,18 @@ def linear_harmonics(n, m):
         lh[i][1] = y + ( z - y ) / m[0] * i
     return(lh)
 
+def linear_harmonics_red_even(n, m):
+    r, a, b, y, z = m[1:6]
+    lh = np.zeros((m[0],2))
+    for i in range(0,m[0],1):
+        if i % 2 == 0:
+            lh[i][0] = r * ( a + ( b - a ) / m[0] * i )
+            lh[i][1] = r * ( y + ( z - y ) / m[0] * i )
+        else:
+            lh[i][0] = a + ( b - a ) / m[0] * i
+            lh[i][1] = y + ( z - y ) / m[0] * i
+    return(lh)
 
-lenvelopes = np.array([
-    [20,5],[10,1],[17,5],[7,1],
-    [13,5],[5,1],[10,5],[2,1],
-    [5,5],[2,1],[5,5],[2,1],
-    [3,1],[2,1],[3,0.9],[2,0.8],
-    [3,0.7],[2,0.6],[3,0.5],[3,0.4],
-    [3,0.3],[2,0.2],[3,0.1],[2,0],
-])
 
 env_lib = {
      '_adsr' : envelope_adsr,
@@ -140,5 +143,6 @@ voice_lib = {
 }
 
 harm_lib = {
-    '_line' : linear_harmonics
+    '_line' : linear_harmonics,
+    '_lhre' : linear_harmonics_red_even
 }

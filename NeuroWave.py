@@ -14,7 +14,29 @@ import NeuroNoise as NZ
 import NeuroNote as NN
 import NeuroDyne as ND
 
+class Generator:
 
+    def __init__(self, base, voice):
+        self.base = base
+        self.voice = voice
+        #self.sound = self.build_wave()
+
+    def build_wave(self,fundf, length, rate):
+        """ Generate an containing data for a complex waveform
+            a = amplitude, f = frequency in Hz, p = phase of sine function,
+            l = number of samples, r = sampling rate (samples/sec)
+        """
+        n_samples = NC.nsamples(length)
+
+        time = np.linspace(0,n_samples-1,n_samples)
+        wave_data = np.zeros(n_samples)
+        #self.base.build_harm_set(fundf,self.base.nharmonics)
+        #nonlocal self.base.nharmonics
+        for i in range(0,self.base.nharmonics,1):
+
+            wave_data += self.voice.env_model(time, self.voice.env_set[i]) * np.sin(2 * math.pi * self.base.harm_series[i]* time / rate + self.base.phase_set[i])
+
+        return(wave_data)
 
 class Base:
 
@@ -34,19 +56,20 @@ class Base:
             self.phase = phase_lib['_zero']
             print("Phase set {} not found. Using default phase set: _zero.".format(phase))
         self.phase_set = self.build_phase_set()
-        self.harm_series = self.build_harm_set()
+        self.harm_series = self.build_harm_set(self.fundfreq)
+
 
         if addfreqs != None:
             self.harm_series = self.harm_series + np.array(addfreqs)
             self.nharmonics += len(addfreqs)
 
     def build_phase_set(self):
-        phase_set = self.phase_model(self.nharmonics)
-        return(phase_set)
+        self.phase_set = self.phase_model(self.nharmonics)
+        return(self.phase_set)
 
-    def build_harm_set(self):
-        harm_model = self.harm_model(self.fundfreq,self.nharmonics)
-        return(harm_model)
+    def build_harm_set(self, freq):
+        self.harm_model = self.harm_model(freq, self.nharmonics)
+        return(self.harm_model)
 
     def print_phase_set(self):
         print(self.phase_set)
